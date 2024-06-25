@@ -1,0 +1,123 @@
+<!-- myapp/templates/home.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Location Map</title>
+    <script>
+        let userLocation;
+        let map;
+        let markers = [];
+        let currentHubMarker = null;
+        let currentRouteControl = null;
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition);
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function showPosition(position) {
+            userLocation = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+            };
+
+            fetch(`/get_location/?lat=${userLocation.latitude}&lon=${userLocation.longitude}`)
+                .then(response => response.json())
+                .then(data => {
+                    initMap(userLocation, data.hubs);
+                });
+        }
+
+        function initMap(userLocation, hubs) {
+            map = L.map('map').setView([userLocation.latitude, userLocation.longitude], 12);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Define custom icons
+            const blueIcon = new L.Icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.3.4/images/marker-shadow.png',
+                shadowSize: [41, 41]
+            });
+
+            const faintBlueIcon = new L.Icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.3.4/images/marker-shadow.png',
+                shadowSize: [41, 41],
+                iconOpacity: 0.5
+            });
+
+            const redIcon = new L.Icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.3.4/images/marker-shadow.png',
+                shadowSize: [41, 41]
+            });
+
+            // Add user location marker
+            L.marker([userLocation.latitude, userLocation.longitude], { icon: faintBlueIcon }).addTo(map)
+                .bindPopup('User Location')
+                .openPopup();
+
+            // Add hub markers
+            hubs.forEach(hub => {
+                const marker = L.marker([hub.latitude, hub.longitude], { icon: redIcon })
+                    .addTo(map)
+                    .bindPopup(`<button onclick="showRoute(${hub.latitude}, ${hub.longitude})">Show Route</button>`);
+
+                markers.push(marker);
+            });
+
+            // Function to show the route and update the hub marker
+            window.showRoute = function(lat, lon) {
+                if (currentHubMarker) {
+                    map.removeLayer(currentHubMarker);
+                }
+
+                currentHubMarker = L.marker([lat, lon], { icon: redIcon }).addTo(map)
+                    .bindPopup(`Hub (${lat}, ${lon})`)
+                    .openPopup();
+
+                if (currentRouteControl) {
+                    map.removeControl(currentRouteControl);
+                }
+
+                currentRouteControl = L.Routing.control({
+                    waypoints: [
+                        L.latLng(userLocation.latitude, userLocation.longitude),
+                        L.latLng(lat, lon)
+                    ],
+                    routeWhileDragging: true,
+                    lineOptions: {
+                        styles: [{ color: 'darkblue', weight: 5 }]
+                    }
+                }).addTo(map);
+            }
+        }
+
+        window.onload = getLocation;
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+</head>
+<body>
+    <h1>Nearest Hub</h1>
+    <div id="map" style="width: 100%; height: 500px;">Loading map...</div>
+</body>
+</html>
